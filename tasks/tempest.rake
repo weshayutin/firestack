@@ -59,6 +59,22 @@ else
   source ~/novarc
 fi
 
+#Check for volume group called cinder-volumes
+if [ ! -d /volumes ]; then
+  mkdir /volumes
+fi
+
+vgdisplay cinder-volumes
+if [ $? -ne 0 ]; then
+  echo " Creating a fake physical volume, create vggroup cinder-volumes"
+  dd if=/dev/zero of=/volumes/cinder-volumes bs=1 count=0 seek=2G
+  losetup /dev/loop1 /volumes/cinder-volumes
+  pvcreate /dev/loop1
+  vgcreate cinder-volumes3 /dev/loop1
+  service openstack-cinder-volume restart
+fi
+
+
 IMG_ID=$(nova image-list | grep #{image_name} | tail -n 1 | sed -e "s|\\| \\([^ ]*\\) .*|\\1|")
 [ -z "$IMG_ID" ] && { echo "Failed to set image ID."; exit 1; }
 cat > /root/tempest/etc/tempest.conf <<EOF_CAT
@@ -69,6 +85,10 @@ port=5000
 api_version=v2.0
 path=tokens
 strategy=keystone
+uri=http://localhost:5000/v2.0
+username=user1
+tenant_name=user1
+password=DDEEFF445566
 
 [compute]
 username=user1
