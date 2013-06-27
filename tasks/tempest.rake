@@ -77,6 +77,7 @@ fi
 
 IMG_ID=$(nova image-list | grep #{image_name} | tail -n 1 | sed -e "s|\\| \\([^ ]*\\) .*|\\1|")
 [ -z "$IMG_ID" ] && { echo "Failed to set image ID."; exit 1; }
+if [ ! -f /root/tempest/etc/tempest.conf ]; then 
 cat > /root/tempest/etc/tempest.conf <<EOF_CAT
 [identity]
 use_ssl=False
@@ -128,6 +129,8 @@ username=admin
 password=AABBCC112233
 tenant_name=admin
 EOF_CAT
+fi
+
 
 cd /root/tempest
 nosetests tempest $NOSE_ARGS | tee out.log
