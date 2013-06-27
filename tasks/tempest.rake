@@ -123,7 +123,7 @@ tenant_name=admin
 username=admin
 password=AABBCC112233
 tenant_name=admin
-
+ 
 [identity-admin]
 username=admin
 password=AABBCC112233
@@ -131,9 +131,13 @@ tenant_name=admin
 EOF_CAT
 fi
 
+yum install python-virtualenv -y
+easy_install testtools testresources
+
 
 cd /root/tempest
-nosetests tempest $NOSE_ARGS | tee out.log
+#nosetests tempest $NOSE_ARGS | tee out.log
+run_tests.sh -V -f -s
 
 EOF_SERVER_NAME
 } do |ok, out|
