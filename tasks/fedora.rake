@@ -8,10 +8,13 @@ namespace :fedora do
         project=ENV['PROJECT_NAME']
         raise "Please specify a PROJECT_NAME." if project.nil?
 
-        packager_url=ENV['RPM_PACKAGER_URL']
-        raise "Please specify a RPM_PACKAGER_URL." if packager_url.nil?
+        packager_url=ENV['RPM_PACKAGER_URL'] || ENV['PACKAGER_URL']
+        raise "Please specify a PACKAGER_URL." if packager_url.nil?
 
-        packager_branch= ENV.fetch("RPM_PACKAGER_BRANCH", "master")
+        packager_branch=ENV['RPM_PACKAGER_BRANCH'] || ENV['PACKAGER_BRANCH']
+        if packager_branch.nil? then
+          packager_branch='master'
+        end
 
         git_master=ENV['GIT_MASTER']
         raise "Please specify a GIT_MASTER." if git_master.nil?
@@ -35,7 +38,7 @@ namespace :fedora do
 ssh #{server_name} bash <<-"EOF_SERVER_NAME"
 #{BASH_COMMON}
 #{CACHE_COMMON}
-install_package git rpm-build python-setuptools yum-utils
+install_package git rpm-build python-setuptools yum-utils make
 
 BUILD_LOG=$(mktemp)
 SRC_DIR="#{project}_source"
@@ -84,6 +87,8 @@ PROJECT_NAME="#{project}"
 # prep our rpmbuild tree
 mkdir -p ~/rpmbuild/SPECS
 mkdir -p ~/rpmbuild/SOURCES
+rm -Rf ~/rpmbuild/RPMS/*
+rm -Rf ~/rpmbuild/SRPMS/*
 
 if [ -f setup.py ]; then
   SKIP_GENERATE_AUTHORS=1 SKIP_WRITE_GIT_CHANGELOG=1 python setup.py sdist &> $BUILD_LOG || { echo "Failed to run sdist."; cat $BUILD_LOG; exit 1; }
@@ -123,6 +128,7 @@ sed -i.bk "$SPEC_FILE_NAME" -e "s/^Version:.*/Version:          $VERSION/g"
 
 # clean any pre-existing RPMS dir (from previous build caching)
 rm -Rf RPMS
+rm -Rf SRPMS
 
 #build source RPM
 rpmbuild -bs $SPEC_FILE_NAME &> $BUILD_LOG || { echo "Failed to build srpm."; cat $BUILD_LOG; exit 1; }
@@ -137,6 +143,7 @@ mkdir -p ~/rpms
 find ~/rpmbuild -name "*rpm" -exec cp {} ~/rpms \\;
 # keep a backup of RPMs within this project build dir for caching (if enabled)
 mv ~/rpmbuild/RPMS .
+mv ~/rpmbuild/SRPMS .
 
 if ls ~/rpms/${RPM_BASE_NAME}*.noarch.rpm &> /dev/null; then
   rm $BUILD_LOG
@@ -219,7 +226,7 @@ fi
         remote_exec %{
 ssh #{server_name} bash <<-"EOF_SERVER_NAME"
 #{BASH_COMMON}
-install_package httpd
+install_package httpd createrepo
 
 mkdir -p /var/www/html/repos/
 rm -rf /var/www/html/repos/*
@@ -365,6 +372,17 @@ wget #{repo_file_url}
         Rake::Task["fedora:build_packages"].execute
     end
 
+    task :build_oslo_sphinx do
+        packager_url= ENV.fetch("RPM_PACKAGER_URL", "#{FEDORA_GIT_BASE}/openstack-python-oslo-sphinx.git")
+        ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
+        if ENV["GIT_MASTER"].nil?
+            ENV["GIT_MASTER"] = "git://github.com/openstack/oslo.sphinx.git"
+        end
+        ENV['SOURCE_URL'] = 'git://github.com/openstack/oslo.sphinx.git'
+        ENV["PROJECT_NAME"] = "oslo.sphinx"
+        Rake::Task["fedora:build_packages"].execute
+    end
+
     task :build_python_swiftclient do
 
         packager_url= ENV.fetch("RPM_PACKAGER_URL", "#{FEDORA_GIT_BASE}/openstack-python-swiftclient.git")
@@ -418,6 +436,18 @@ wget #{repo_file_url}
             ENV["GIT_MASTER"] = "git://github.com/openstack/python-quantumclient.git"
         end
         ENV["PROJECT_NAME"] = "python-quantumclient"
+        # Nail right before neutronclient rename
+        ENV["REVISION"] = "8ed38707b12ae6e77480ae8d8542712d63b7fc70"
+        Rake::Task["fedora:build_packages"].execute
+    end
+
+    task :build_python_neutronclient do
+        packager_url= ENV.fetch("RPM_PACKAGER_URL", "#{FEDORA_GIT_BASE}/openstack-python-neutronclient.git")
+        ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
+        if ENV["GIT_MASTER"].nil?
+            ENV["GIT_MASTER"] = "git://github.com/openstack/python-neutronclient.git"
+        end
+        ENV["PROJECT_NAME"] = "python-neutronclient"
         Rake::Task["fedora:build_packages"].execute
     end
 
@@ -576,6 +606,16 @@ EOF_SERVER_NAME
 
         ENV.clear
         ENV.update(saved_env)
+        Rake::Task["fedora:build_oslo_sphinx"].execute
+
+        remote_exec %{
+ssh #{server_name} bash <<-"EOF_SERVER_NAME"
+yum install -y -q $(ls ~/rpms/python-oslo-sphinx*.noarch.rpm | tail -n 1)
+EOF_SERVER_NAME
+}
+
+        ENV.clear
+        ENV.update(saved_env)
         Rake::Task["fedora:build_python_stevedore"].execute
 
         ENV.clear
@@ -608,6 +648,46 @@ EOF_SERVER_NAME
         #ENV.update(saved_env)
         #Rake::Task["fedora:build_python_cliff"].execute
 
+        ENV.clear
+        ENV.update(saved_env)
+        ENV["SOURCE_URL"] = "git://github.com/openstack/python-neutronclient.git"
+        Rake::Task["fedora:build_python_neutronclient"].execute
+
+    end
+
+    task :build_fog do
+
+      saved_env = ENV.to_hash
+
+      ENV["RPM_PACKAGER_URL"] = "git://github.com/dprince/rubygem-excon.git"
+      ENV["GIT_MASTER"] = "git://github.com/geemus/excon.git"
+      ENV["PROJECT_NAME"] = "excon"
+      # Nail it at 0.25.1
+      ENV["REVISION"] = "93b3fd27833b66b5bcc82bf62f92bc0e8aa42c58"
+      ENV["SOURCE_URL"] = "git://github.com/geemus/excon.git"
+      Rake::Task["fedora:build_packages"].execute
+
+      ENV.clear
+      ENV.update(saved_env)
+
+      ENV["RPM_PACKAGER_URL"] = "git://github.com/dprince/rubygem-fog.git"
+      ENV["GIT_MASTER"] = "git://github.com/fog/fog.git"
+      ENV["PROJECT_NAME"] = "fog"
+      ENV["SOURCE_URL"] = "git://github.com/fog/fog.git"
+      Rake::Task["fedora:build_packages"].execute
+
+    end
+
+    task :build_torpedo => :distro_name do
+
+      packager_url= ENV.fetch("RPM_PACKAGER_URL", "git://github.com/dprince/rubygem-torpedo.git")
+      ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
+      if ENV["GIT_MASTER"].nil?
+        ENV["GIT_MASTER"] = "git://github.com/dprince/torpedo.git"
+      end
+      ENV["PROJECT_NAME"] = "torpedo"
+      ENV["SOURCE_URL"] = "git://github.com/dprince/torpedo.git"
+      Rake::Task["fedora:build_packages"].execute
     end
 
 end
