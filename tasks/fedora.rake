@@ -3,7 +3,7 @@ namespace :fedora do
     FEDORA_GIT_BASE="git://github.com/redhat-openstack"
 
     #generic package builder to build RPMs for all Openstack projects
-    task :build_packages do
+    task :build_packages => :distro_name do
 
         project=ENV['PROJECT_NAME']
         raise "Please specify a PROJECT_NAME." if project.nil?
@@ -45,7 +45,7 @@ SRC_DIR="#{project}_source"
 
 CACHEURL="#{cacheurl}"
 if [ -n "$CACHEURL" ] ; then
-    download_cached_rpm #{project} "#{src_url}" "#{src_branch}" "#{git_revision}" "#{packager_url}" "#{packager_branch}" 
+    download_cached_rpm "#{ENV['DISTRO_NAME']}" "#{project}" "#{src_url}" "#{src_branch}" "#{git_revision}" "#{packager_url}" "#{packager_branch}" 
     test $? -eq 0 && { echo "Retrieved rpm's from cache" ; exit 0 ; }
 fi
 
@@ -430,15 +430,16 @@ wget #{repo_file_url}
     end
 
     task :build_python_quantumclient do
-        packager_url= ENV.fetch("RPM_PACKAGER_URL", "#{FEDORA_GIT_BASE}/openstack-python-quantumclient.git")
-        ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
-        if ENV["GIT_MASTER"].nil?
-            ENV["GIT_MASTER"] = "git://github.com/openstack/python-quantumclient.git"
-        end
-        ENV["PROJECT_NAME"] = "python-quantumclient"
+        puts "Please build neutronclient"
+        #packager_url= ENV.fetch("RPM_PACKAGER_URL", "#{FEDORA_GIT_BASE}/openstack-python-quantumclient.git")
+        #ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
+        #if ENV["GIT_MASTER"].nil?
+        #    ENV["GIT_MASTER"] = "git://github.com/openstack/python-quantumclient.git"
+        #end
+        #ENV["PROJECT_NAME"] = "python-quantumclient"
         # Nail right before neutronclient rename
-        ENV["REVISION"] = "8ed38707b12ae6e77480ae8d8542712d63b7fc70"
-        Rake::Task["fedora:build_packages"].execute
+        #ENV["REVISION"] = "8ed38707b12ae6e77480ae8d8542712d63b7fc70"
+        #Rake::Task["fedora:build_packages"].execute
     end
 
     task :build_python_neutronclient do
@@ -574,6 +575,8 @@ wget #{repo_file_url}
             ENV["GIT_MASTER"] = "git://github.com/openstack-dev/pbr.git"
         end
         ENV["PROJECT_NAME"] = "pbr"
+        #FIXME: nail to a working version of PBR (migrate.cfg missing)
+        ENV["REVISION"] = "705c04becdef75efbc67cb294981a7f6ab298a61"
         ENV["SOURCE_URL"] = "git://github.com/openstack-dev/pbr.git"
         Rake::Task["fedora:build_packages"].execute
 
