@@ -441,13 +441,13 @@ wget #{repo_file_url}
 
     task :build_packstack do
 
-        packager_url= ENV.fetch("RPM_PACKAGER_URL", "git@github.com:weshayutin/packstack.git")
+        packager_url= ENV.fetch("RPM_PACKAGER_URL", "https://github.com/weshayutin/packstack.git")
         ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
         if ENV["GIT_MASTER"].nil?
-            ENV["GIT_MASTER"] = "git@github.com:weshayutin/packstack.git"
+            ENV["GIT_MASTER"] = "https://github.com/weshayutin/packstack.git"
         end
         ENV["PROJECT_NAME"] = "packstack"
-        ENV["SOURCE_URL"] = "git@github.com:weshayutin/packstack.git"
+        ENV["SOURCE_URL"] = "https://github.com/weshayutin/packstack.git"
         Rake::Task["rhel:build_packages"].execute
 
     end
