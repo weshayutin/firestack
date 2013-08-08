@@ -32,6 +32,13 @@ task :build_misc => :distro_name do
   Rake::Task["#{ENV['DISTRO_NAME']}:build_misc"].invoke
 end
 
+
+# hook to build packstackupstream
+desc "Build Packstack."
+task :build_packstack => :distro_name do
+  Rake::Task["#{ENV['DISTRO_NAME']}:build_packstack"].invoke
+end
+
 # hook to build create a local package repository within the group
 desc "Configure package repo (Yum/Zypp/Apt repo config)."
 task :create_package_repo => :distro_name do
