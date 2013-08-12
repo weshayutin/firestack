@@ -439,18 +439,7 @@ wget #{repo_file_url}
 
     end
 
-    task :build_packstack do
-
-        packager_url= ENV.fetch("RPM_PACKAGER_URL", "https://github.com/weshayutin/packstack.git")
-        ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
-        if ENV["GIT_MASTER"].nil?
-            ENV["GIT_MASTER"] = "https://github.com/weshayutin/packstack.git"
-        end
-        ENV["PROJECT_NAME"] = "packstack"
-        ENV["SOURCE_URL"] = "https://github.com/weshayutin/packstack.git"
-        Rake::Task["rhel:build_packages"].execute
-
-    end
+    
 
     task :build_misc do
 
@@ -476,6 +465,59 @@ wget #{repo_file_url}
         ENV.update(saved_env)
         ENV['SOURCE_URL'] = 'git://github.com/openstack/oslo-config.git'
         Rake::Task["rhel:build_oslo_config"].execute
+
+    end
+
+    #task :build_packstack do
+    #
+    #    packager_url= ENV.fetch("RPM_PACKAGER_URL", "https://github.com/weshayutin/packstack.git")
+    #    ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
+    #    if ENV["GIT_MASTER"].nil?
+    #        ENV["GIT_MASTER"] = "https://github.com/weshayutin/packstack.git"
+    #    end
+    #    ENV["PROJECT_NAME"] = "openstack-packstack"
+    #    ENV["SOURCE_URL"] = "https://github.com/weshayutin/packstack.git"
+    #    Rake::Task["rhel:build_packages"].execute
+    #
+    #end
+
+    desc "Create a packstack rpm."
+    task :build_packstack do
+
+        server_name=ENV['SERVER_NAME']
+        server_name = "localhost" if server_name.nil?
+
+        puts "Building packstack rpm on local server"
+        remote_exec %{
+ssh #{server_name} bash <<-"EOF_SERVER_NAME"
+#{BASH_COMMON}
+yum -y install git rpm-build python2-devel python-sphinx10
+git clone --recursive https://github.com/weshayutin/packstack.git packstack-build
+cd packstack-build
+#cat /dev/null > setup.cfg
+python setup.py sdist
+mkdir -p $HOME/rpmbuild/SOURCES
+mkdir -p $HOME/rpmbuild/SPECS
+cp openstack-packstack.spec $HOME/rpmbuild/SPECS
+cp dist/openstack-packstack*.tar.gz $HOME/rpmbuild/SOURCES
+rpmbuild -bb openstack-packstack.spec -D '_without_doc 1'
+mkdir $HOME/rpms
+cp $HOME/rpmbuild/RPMS/noarch/openstack-packstack-* /rpms
+cp $HOME/rpmbuild/RPMS/noarch/packstack-modules-puppet* /rpms
+
+
+EOF_SERVER_NAME
+        } do |ok, out|
+            fail "Failed to create packstack RPM!" unless ok
+        end
+
+        err_msg = ""
+        results.each_pair do |hostname, data|
+            ok = data[0]
+            out = data[1]
+            err_msg += "Errors creating packstack rpm on #{hostname}. \n #{out}\n" unless ok
+        end
+        fail err_msg unless err_msg == ""
 
     end
 
