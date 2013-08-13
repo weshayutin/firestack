@@ -131,13 +131,13 @@ rm -Rf RPMS
 rm -Rf SRPMS
 
 #build source RPM
-rpmbuild -bs $SPEC_FILE_NAME &> $BUILD_LOG || { echo "Failed to build srpm."; cat $BUILD_LOG; exit 1; }
+rpmbuild -bs $SPEC_FILE_NAME &>> $BUILD_LOG || { echo "Failed to build srpm."; cat $BUILD_LOG; exit 1; }
 
 # install dependency projects
-yum-builddep --nogpgcheck -y ~/rpmbuild/SRPMS/${RPM_BASE_NAME}-${VERSION}-*.src.rpm &> $BUILD_LOG || { echo "Failed to yum-builddep."; cat $BUILD_LOG; exit 1; }
+yum-builddep --nogpgcheck -y ~/rpmbuild/SRPMS/${RPM_BASE_NAME}-${VERSION}-*.src.rpm &>> $BUILD_LOG || { echo "Failed to yum-builddep."; cat $BUILD_LOG; exit 1; }
 
 # build rpm's
-rpmbuild -bb --nocheck $SPEC_FILE_NAME &> $BUILD_LOG || { echo "Failed to build srpm."; cat $BUILD_LOG; exit 1; }
+rpmbuild -bb --nocheck $SPEC_FILE_NAME &>> $BUILD_LOG || { echo "Failed to build srpm."; cat $BUILD_LOG; exit 1; }
 
 mkdir -p ~/rpms
 find ~/rpmbuild -name "*rpm" -exec cp {} ~/rpms \\;
@@ -265,7 +265,7 @@ echo -e "[openstack]\\nname=OpenStack RPM repo\\nbaseurl=http://#{server_name}/r
 
         # Default to using the upstream packages built by SmokeStack:
         #  http://repos.fedorapeople.org/repos/openstack/openstack-trunk/README
-        repo_file_url=ENV['REPO_FILE_URL'] || "http://repos.fedorapeople.org/repos/openstack/openstack-trunk/fedora-openstack-trunk.repo"
+        repo_file_url=ENV['REPO_FILE_URL'] || "http://repos.fedorapeople.org/repos/openstack/openstack-trunk/redhat-openstack-trunk.repo"
 
         sg=ServerGroup.get()
         puts "Creating yum repo config files..."
@@ -570,6 +570,33 @@ wget #{repo_file_url}
         Rake::Task["fedora:build_packages"].execute
 
     end
+
+    task  :build_ceilometer do
+        packager_url= ENV.fetch("RPM_PACKAGER_URL", "#{FEDORA_GIT_BASE}/openstack-ceilometer.git")
+        packager_branch= ENV.fetch("RPM_PACKAGER_BRANCH", "smokestack")
+        ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
+        ENV["RPM_PACKAGER_BRANCH"] = packager_branch if ENV["RPM_PACKAGER_BRANCH"].nil?
+        if ENV["GIT_MASTER"].nil?
+            ENV["GIT_MASTER"] = "git://github.com/openstack/ceilometer.git"
+        end
+        ENV["PROJECT_NAME"] = "ceilometer"
+        ENV["SOURCE_URL"] = "git://github.com/openstack/ceilometer.git"
+        Rake::Task["fedora:build_packages"].execute
+    end
+
+    task :build_python_ceilometerclient do
+        packager_url= ENV.fetch("RPM_PACKAGER_URL", "git://github.com/ianw/openstack-python-ceilometerclient.git")
+        packager_branch= ENV.fetch("RPM_PACKAGER_BRANCH", "readme-fix")
+        ENV["RPM_PACKAGER_URL"] = packager_url if ENV["RPM_PACKAGER_URL"].nil?
+        ENV["RPM_PACKAGER_BRANCH"] = packager_branch if ENV["RPM_PACKAGER_BRANCH"].nil?
+        if ENV["GIT_MASTER"].nil?
+            ENV["GIT_MASTER"] = "git://github.com/openstack/python-ceilometerclient.git"
+        end
+        ENV["PROJECT_NAME"] = "python-ceilometerclient"
+        ENV["SOURCE_URL"] = "git://github.com/openstack/python-ceilometerclient.git"
+        Rake::Task["fedora:build_packages"].execute
+    end
+
 
     task :build_misc do
 
